@@ -6,6 +6,7 @@ from er.core.config import FEATURES
 from er.core.gal_json import GalJson
 from er.core.pipeline import packer, textract
 from er.processor.mapping import EncodingType, ReplacementPoolBuilder
+from er.utils.compatibility import load_uif_json_substitution
 from er.utils import fs
 from er.utils.console import console
 
@@ -92,9 +93,17 @@ def replace(check: bool = True) -> None:
 
 def fix_translated() -> None:
     """修复翻译JSON(fix_translated)的逻辑"""
+    substitution = load_uif_json_substitution("workspace/uif_config.json")
+    translation_table = str.maketrans(substitution)
+
     gal_json = GalJson.load_from_path("workspace/translated.json")
     (
-        gal_json.apply_align_brackets_closure()
-        .apply_align_leading_whitespace()
-        .save_to_path("workspace/translated.json")
+        gal_json
+        # .apply_align_brackets_closure()
+        # .apply_align_leading_whitespace()
+        .apply_transform(
+            lambda value: value.translate(translation_table),
+            item_fields=("name", "message"),
+            include_names=True,
+        ).save_to_path("workspace/translated.json")
     )
