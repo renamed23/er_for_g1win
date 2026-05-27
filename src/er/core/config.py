@@ -58,6 +58,16 @@ HOOK_LISTS = {
     ],
 }
 
+# {exe_dir}, {cwd},
+# {temp_dir}, {resource_pack_dir}
+VFS_RULES = [
+    {
+        "source": "{exe_dir}/abc/*",
+        "target": "{exe_dir}/abc2/*",
+        "mode": "force",  # force, fallback
+    }
+]
+
 
 # bind_asset_virtualizer, bind_font_manager, bind_lifecycle_guard
 # bind_path_redirector, bind_text_mapping, bind_user_interface_patcher
@@ -96,6 +106,7 @@ def generate_config_files() -> None:
     """生成配置文件"""
     misc.write_json("workspace/generated/config.json", CONFIG)
     misc.write_json("workspace/generated/hook_lists.json", HOOK_LISTS)
+    misc.write_json("workspace/generated/vfs_rules.json", VFS_RULES)
 
 
 def generate_bitmap_font_config(chars: str) -> None:

@@ -20,11 +20,11 @@ class TextHookBuilder:
         Returns:
             None
         """
-        self.project_path = to_path(project_path)
-        self.current_dir = Path.cwd()
-        self.assets_dir = self.project_path / "crates" / "text-hook" / "assets"
-        self.generated_dir = self.current_dir / "workspace" / "generated"
-        self.dist_dir = self.current_dir / "workspace" / "generated" / "dist"
+        self.project_path: Path = to_path(project_path)
+        self.current_dir: Path = Path.cwd()
+        self.assets_dir: Path = self.project_path / "crates" / "text-hook" / "assets"
+        self.generated_dir: Path = self.current_dir / "workspace" / "generated"
+        self.dist_dir: Path = self.current_dir / "workspace" / "generated" / "dist"
 
     def _run_command(
         self,
@@ -68,7 +68,6 @@ class TextHookBuilder:
             console.print(f"已删除 assets 中的 dist 目录: {assets_dist}", style="warn")
 
         asset_dirs = [
-            "font",
             "hijacked",
             "x64dbg_1337_patch",
         ]
@@ -96,12 +95,14 @@ class TextHookBuilder:
                 )
 
         generated_dirs = [
+            "font",
             "raw_patch",
             "translated_patch",
             "raw_text",
             "translated_text",
             "resource_pack",
             "misc",
+            "exe",
         ]
         for dir_name in generated_dirs:
             current_dir = self.generated_dir / dir_name
@@ -120,11 +121,9 @@ class TextHookBuilder:
 
         config_files = [
             "mapping.json",
-            "translated.json",
-            "raw.json",
             "config.json",
             "hook_lists.json",
-            "sjis_ext.bin",
+            "vfs_rules.json",
         ]
         for filename in config_files:
             src_file = self.generated_dir / filename
@@ -138,6 +137,7 @@ class TextHookBuilder:
         arch: Literal["x86", "x64"] = "x86",
         panic: Literal["unwind", "abort", "immediate-abort"] = "unwind",
         clean: bool = False,
+        output_name: str | None = None,
     ) -> None:
         """构建 DLL 文件。
 
@@ -146,6 +146,7 @@ class TextHookBuilder:
             arch: 目标架构，支持 ``x86`` 或 ``x64``。
             panic: panic 策略。
             clean: 是否在构建前执行 ``cargo clean``。
+            output_name: 可选的输出 DLL 文件名；为 ``None`` 时按现有规则自动决定。
 
         Returns:
             None
@@ -161,8 +162,6 @@ class TextHookBuilder:
                 source_dll_rel = to_path(
                     "target/x86_64-pc-windows-msvc/release/text_hook.dll"
                 )
-            case _:
-                raise ValueError("arch 参数必须是 'x86' 或 'x64'")
 
         self.dist_dir.mkdir(parents=True, exist_ok=True)
 
@@ -212,26 +211,38 @@ class TextHookBuilder:
         dest_dll = self.dist_dir / "text_hook.dll"
         copy_entry(source_dll, dest_dll, overwrite=True)
 
-        hijacked_dir = self.current_dir / "assets" / "hijacked"
-        if hijacked_dir.exists() and any(hijacked_dir.iterdir()):
-            console.print(f"检测到非空的 hijacked 目录: {hijacked_dir}", style="info")
-            hijacked_files = list(hijacked_dir.iterdir())
+        final_dll = dest_dll
+        if output_name is not None:
+            console.print(f"使用显式指定的 DLL 名称: {output_name}", style="info")
+            final_dll = rename_path(dest_dll, output_name, overwrite=True)
+        else:
+            hijacked_dir = self.current_dir / "assets" / "hijacked"
+            if hijacked_dir.exists() and any(hijacked_dir.iterdir()):
+                console.print(
+                    f"检测到非空的 hijacked 目录: {hijacked_dir}", style="info"
+                )
+                hijacked_files = list(hijacked_dir.iterdir())
 
-            if len(hijacked_files) == 1:
-                new_dll_name = hijacked_files[0].name
-                console.print(f"将 DLL 重命名为: {new_dll_name}", style="info")
-                rename_path(dest_dll, new_dll_name, overwrite=True)
+                if len(hijacked_files) == 1:
+                    new_dll_name = hijacked_files[0].name
+                    console.print(
+                        f"根据 hijacked 自动将 DLL 重命名为: {new_dll_name}",
+                        style="info",
+                    )
+                    final_dll = rename_path(dest_dll, new_dll_name, overwrite=True)
+                else:
+                    console.print(
+                        (
+                            "警告: hijacked 目录包含 "
+                            f"{len(hijacked_files)} 个文件，但预期只有1个文件"
+                        ),
+                        style="warn",
+                    )
+                    console.print("跳过 DLL 重命名", style="warn")
             else:
                 console.print(
-                    (
-                        "警告: hijacked 目录包含 "
-                        f"{len(hijacked_files)} 个文件，但预期只有1个文件"
-                    ),
-                    style="warn",
+                    f"hijacked 目录不存在或为空: {hijacked_dir}", style="warn"
                 )
-                console.print("跳过 DLL 重命名", style="warn")
-        else:
-            console.print(f"hijacked 目录不存在或为空: {hijacked_dir}", style="warn")
 
         assets_dist = self.assets_dir / "dist"
         if assets_dist.exists():
@@ -242,7 +253,7 @@ class TextHookBuilder:
             merge_dir(assets_dist, self.dist_dir, overwrite=True)
             console.print("合并完成", style="info")
 
-        console.print(f"DLL 构建并复制成功: {dest_dll}", style="info")
+        console.print(f"DLL 构建并复制成功: {final_dll}", style="info")
 
     def build(
         self,
@@ -250,6 +261,7 @@ class TextHookBuilder:
         arch: Literal["x86", "x64"] = "x86",
         panic: Literal["unwind", "abort", "immediate-abort"] = "unwind",
         clean: bool = False,
+        output_name: str | None = None,
     ) -> None:
         """执行完整构建流程。
 
@@ -258,6 +270,7 @@ class TextHookBuilder:
             arch: 目标架构，支持 ``x86`` 或 ``x64``。
             panic: panic 策略。
             clean: 是否在构建前执行 ``cargo clean``。
+            output_name: 可选的输出 DLL 文件名；为 ``None`` 时按现有规则自动决定。
 
         Returns:
             None
@@ -268,5 +281,11 @@ class TextHookBuilder:
         self.copy_assets_for_build()
         console.print("资源文件复制完成", style="info")
 
-        self.build_dll(features, arch=arch, panic=panic, clean=clean)
+        self.build_dll(
+            features,
+            arch=arch,
+            panic=panic,
+            clean=clean,
+            output_name=output_name,
+        )
         console.print("构建流程完成", style="info")

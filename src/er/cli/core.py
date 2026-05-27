@@ -24,7 +24,8 @@ def extract() -> None:
     gal_json.save_to_path("workspace/raw_text.json")
 
     (
-        gal_json.apply_extract_control_tags()
+        gal_json
+        .apply_extract_control_tags()
         .apply_current_to_raw_fields()
         .apply_add_tags()
         .save_to_path("workspace/raw.json")
@@ -42,7 +43,8 @@ def replace(check: bool = True) -> None:
 
     if check:
         (
-            gal_json.check_command_consistency()
+            gal_json
+            .check_command_consistency()
             .check_korean_characters()
             .check_japanese_characters()
             .check_duplicate_quotes()
@@ -55,7 +57,8 @@ def replace(check: bool = True) -> None:
         )
 
     (
-        gal_json.apply_restore_whitespace()
+        gal_json
+        .apply_restore_whitespace()
         .apply_replace_rare_characters()
         .apply_replace_nested_brackets()
         .apply_replace_quotation_marks()
